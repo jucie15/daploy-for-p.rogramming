@@ -90,19 +90,19 @@
     
        ```shell
        $ sudo mkdir -p /etc/uwsgi/sites # -p 옵션은 중간에 없는 디렉토리까지 같이 생성해준다.
-       $ sudo vi /etc/uwsgi/sites/[project].ini
+       $ sudo vi /etc/uwsgi/sites/[project_name].ini
        
-       # dir: /etc/uwsgi/sites/[project].ini -> 한 서버에 여러 Django 앱을 둘 경우(Emperor 모드 사용 가능) 
-       # dir: /home/[user]/run/uwsgi/[project].ini -> 하나만 있을 경우 run 폴더에 바로 설정해도 무관 
+       # dir: /etc/uwsgi/sites/[project_name].ini -> 한 서버에 여러 Django 앱을 둘 경우(Emperor 모드 사용 가능) 
+       # dir: /home/[user_name]/run/uwsgi/[project_name].ini -> 하나만 있을 경우 run 폴더에 바로 설정해도 무관 
        
        [uwsgi]
        uid = ubuntu
        base = /home/%(uid)/deploy-for-p.rogramming
        project = mysite
        
-       home = %(base)/venv
-       chdir = %(base)/%(project)
-       module = %(project).wsgi:application
+       home = %(base)/venv # VirtualEnv 경로 잘 확인
+       chdir = %(base)/%(project) # 프로젝트 경로 잘 확인
+       module = %(project).wsgi:application # wsgi 경로 잘 확인
        
        master = true
        processes = 5
@@ -112,12 +112,15 @@
        chmod-socket = 660
        vacuum = true
        
-       env = DJANGO_SETTINGS_MODULE=mysite.settings.prod
+       env = DJANGO_SETTINGS_MODULE=mysite.settings.prod # manage.py, wsgi.py에서 prod가 아닐 경우를 대비
+       env = SECRET_KEY= # <- SECRET_KEY가 공개되어있는 레포에 올라갈 경우 문제가 보안상 이슈가 생기므로 빼주는게 좋음
+
+       # RDS를 생성 후 정보 입력하여 사용하는게 좋습니다.
+       # (파이썬 코드 ex) os.environ("SECRET_KEY")
        env = DB_NAME=
        env = DB_USER=
        env = DB_PW=
        env = DB_HOST=
-       env = SECRET_KEY=
        ```
     
     2. **uWSGI에 대한 서비스 스크립트 생성**
@@ -136,6 +139,7 @@
        Environment = LC_ALL=ko_KR.utf8
        Environment = LC_LANG=ko_KR.utf8
        
+       # 여기도 해당 파일들의 경로 잘 확인해서 수정해주세요.
        ExecStartPre=/bin/bash -c 'mkdir -p /run/uwsgi; chown ubuntu:www-data /run/uwsgi'
        ExecStart=/home/ubuntu/deploy-for-p.rogramming/venv/bin/uwsgi --emperor /etc/uwsgi/sites
        Restart=always
@@ -165,9 +169,11 @@
          
          server {
              listen 80;
-             server_name [IP OR DOMAIN]; # 서버 도메인 or ip 추가
+             server_name [IP OR DOMAIN]; # 본인의 서버 도메인 or ip 추가
          
              location = /favicon.ico { access_log off; log_not_found off; }
+             # static 폴더의 경로를 잘 확인할 것
+             # 추가로 media 폴더도 똑같은 양식으로 추가 후 static -> media로만 바꿔주시면 됩니다.
              location /static/ {
                  root /home/ubuntu/deploy-for-p.rogramming/mysite;
              }
@@ -182,7 +188,7 @@
     2. **설정 파일 심볼릭 링크 연결**
     
         ```shell
-        $ sudo ln -s /etc/nginx/sites-available/[project] /etc/nginx/sites-enabled
+        $ sudo ln -s /etc/nginx/sites-available/[project_name] /etc/nginx/sites-enabled/
         ```
     
     3. **구문 오류 체크 후 nginx 재시작**
@@ -193,10 +199,4 @@
        $ sudo systemctl enable nginx
        ```
     
-    4. **방화벽 액세스 허용**
-    
-       ```shell
-       $ sudo ufw allow 'Nginx Full'
-       ```
-    
-8. **SSL/ TLS를 사용 트래픽 보호하기**
+8. **HTTPS 적용하기**
